@@ -35,7 +35,7 @@
       nim-svg = nim-svg-outputs.packages.${system}.default;
 
       packages = rec {
-        fluoresce = pkgs.nimPackages.buildNimPackage {
+        fluoresce = pkgs.nim2Packages.buildNimPackage {
           pname = "fluoresce";
           version = "0.1.0";
           nimBinOnly = true;

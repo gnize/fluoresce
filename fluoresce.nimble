@@ -11,3 +11,5 @@ bin           = @["fluoresce"]
 # Dependencies
 
 requires "nim >= 2.0.0"
+requires "NimSvg >= 0.2.0"
+requires "illwill >= 0.3.1"
