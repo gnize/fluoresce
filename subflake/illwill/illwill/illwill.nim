@@ -949,6 +949,8 @@ type
     ##
     width: int
     height: int
+    xOrigin: int
+    yOrigin: int
     buf: seq[TerminalChar]
     currBg: BackgroundColor
     currFg: ForegroundColor
@@ -985,7 +987,7 @@ proc fill*(tb: var TerminalBuffer, x1, y1, x2, y2: Natural, ch: string = " ") =
 
     for y in y1..ye:
       for x in x1..xe:
-        tb[x, y] = c
+        tb[tb.xOrigin + x, tb.yOrigin + y] = c
 
 proc clear*(tb: var TerminalBuffer, ch: string = " ") =
   ## Clears the contents of the terminal buffer with the `ch` character using
@@ -996,6 +998,11 @@ proc initTerminalBuffer(tb: var TerminalBuffer, width, height: Natural) =
   ## Initializes a new terminal buffer object of a fixed `width` and `height`.
   tb.width = width
   tb.height = height
+
+  # these values get set when the buffer is displayed somewhere
+  tb.xOrigin = 0
+  tb.yOrigin = 0
+
   newSeq(tb.buf, width * height)
   tb.currBg = bgNone
   tb.currFg = fgNone
@@ -1137,7 +1144,7 @@ proc write*(tb: var TerminalBuffer, x, y: Natural, s: string) =
   for ch in runes(s):
     var c = TerminalChar(ch: ch, fg: tb.currFg, bg: tb.currBg,
                          style: tb.currStyle)
-    tb[currX, y] = c
+    tb[tb.xOrigin + currX, tb.yOrigin + y] = c
     inc(currX)
   tb.currX = currX
   tb.currY = y
@@ -1176,24 +1183,53 @@ proc setAttribs(c: TerminalChar) =
       gCurrStyle = c.style
       setStyle(gCurrStyle)
 
+proc getPos*(): tuple[row, col: int] =
+
+  # ANSI terminals will respond to this code with the cursor position
+  # $ echo -e "\033[6n"
+  #   ^[[5;1R
+  # That's 5 down, 1 over from the top left
+
+  # send it, read response
+  write(stdout, "\x1b[6n")
+  flushFile(stdout)
+  var response = ""
+  var ch: char
+  while true:
+    let n = readBuffer(stdin, addr ch, 1)
+    if n == 0:
+      break
+    response.add(ch)
+    if ch == 'R':
+      break
+  
+  # parse the response
+  echo response
+  let parts = response[2..^2].split(';')
+  result = (parseInt(parts[0]), parseInt(parts[1]))
+
+
 proc setPos(x, y: Natural) =
   terminal.setCursorPos(x, y)
 
 proc setXPos(x: Natural) =
   terminal.setCursorXPos(x)
 
-proc displayFull(tb: TerminalBuffer) =
+proc displayFull(tb: TerminalBuffer, xOrigin: int = 0, yOrigin: int = 0) =
   var buf = ""
+  tb.xOrigin = xOrigin
+  tb.yOrigin = yOrigin
+
 
   proc flushBuf() =
     if buf.len > 0:
       put buf
       buf = ""
 
-  for y in 0..<tb.height:
-    setPos(0, y)
-    for x in 0..<tb.width:
-      let c = tb[x,y]
+  for y in y_origin..<tb.height:
+    setPos(x_origin, y)
+    for x in x_origin..<tb.width:
+      let c = tb[tb.xOrigin + x,tb.yOrigin + y]
       if c.bg != gCurrBg or c.fg != gCurrFg or c.style != gCurrStyle:
         flushBuf()
         setAttribs(c)
@@ -1201,7 +1237,10 @@ proc displayFull(tb: TerminalBuffer) =
     flushBuf()
 
 
-proc displayDiff(tb: TerminalBuffer) =
+proc displayDiff(tb: TerminalBuffer, xOrigin: int = 0, yOrigin: int = 0) =
+  tb.xOrigin = xOrigin
+  tb.yOrigin = yOrigin
+
   var
     buf = ""
     bufXPos, bufYPos: Natural
@@ -1221,10 +1260,10 @@ proc displayDiff(tb: TerminalBuffer) =
       inc(currXPos, buf.runeLen)
       buf = ""
 
-  for y in 0..<tb.height:
-    bufXPos = 0
+  for y in y_origin..<tb.height:
+    bufXPos = x_origin
     bufYPos = y
-    for x in 0..<tb.width:
+    for x in x_origin..<tb.width:
       let c = tb[x,y]
       if c != gPrevTerminalBuffer[x,y] or c.forceWrite:
         if c.bg != gCurrBg or c.fg != gCurrFg or c.style != gCurrStyle:
@@ -1252,26 +1291,26 @@ proc hasDoubleBuffering*(): bool =
   checkInit()
   result = gDoubleBufferingEnabled
 
-proc display*(tb: TerminalBuffer) =
+proc display*(tb: TerminalBuffer, x: int = 0, y: int = 0) =
   ## Outputs the contents of the terminal buffer to the actual terminal.
   ##
   ## If the module is not intialised, `IllwillError` is raised.
   checkInit()
   if not gFullRedrawNextFrame and gDoubleBufferingEnabled:
     if gPrevTerminalBuffer == nil:
-      displayFull(tb)
+      displayFull(tb, x, y)
       gPrevTerminalBuffer = newTerminalBufferFrom(tb)
     else:
       if tb.width == gPrevTerminalBuffer.width and
          tb.height == gPrevTerminalBuffer.height:
-        displayDiff(tb)
+        displayDiff(tb, x, y)
         gPrevTerminalBuffer.copyFrom(tb)
       else:
-        displayFull(tb)
+        displayFull(tb, x, y)
         gPrevTerminalBuffer = newTerminalBufferFrom(tb)
     flushFile(stdout)
   else:
-    displayFull(tb)
+    displayFull(tb, x, y)
     flushFile(stdout)
     gFullRedrawNextFrame = false
 

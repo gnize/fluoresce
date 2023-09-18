@@ -11,19 +11,22 @@ proc exitProc() {.noconv.} =
 proc main() =
   setControlCHook(exitProc)
   illwillInit(fullscreen = false)
-  echo()
-  echo()
-  echo()
+  echo("begin")
+  let xInitial, yInitial = getPos()
+  echo("getPos", xInitial, yInitial)
+  
+  var tb = newTerminalBuffer(20, 20)
 
-  var tb = newTerminalBuffer(40, 40)
 
   resetAttributes()
 
   while true:
     var key = getKey()
+    tb.write(2, 0, "Start")
     if key != Key.None:
-      tb.write(1, 5, "Content Goes Here", $key)
-    tb.display(20, 20)
+      tb.write(2, 1, "Key: ", $key)
+    tb.write(2, 2, "End")
+    tb.display(2,15)
     sleep(20)
 
 try:

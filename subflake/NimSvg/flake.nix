@@ -10,7 +10,6 @@
     nixpkgs,
     flake-utils,
     nimble2nix,
-    nim-svg-src
   }:
   flake-utils.lib.eachDefaultSystem  
   ( system: 
@@ -20,7 +19,7 @@
         overlays = [nimble2nix.overlay];
       };
     in
-      {
+      rec {
         packages = rec {
 
         nim-svg-src = pkgs.fetchgit {
@@ -50,7 +49,7 @@
           if [ ! -f nimble2nix.json ]
           then
               set -x
-              cp ${nim-svg-src}/*.nimble .
+              cp ${packages.nim-svg-src}/*.nimble .
               nimble2nix
               rm -f *.nimble
           fi
