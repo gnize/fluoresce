@@ -3,6 +3,7 @@
 
 import os, terminal, strutils
 import illwill
+from fluoresce/getpos import getCursorPos
 
 proc exitProc() {.noconv.} =
   illwillDeinit()
@@ -12,8 +13,8 @@ proc main() =
   setControlCHook(exitProc)
   illwillInit(fullscreen = false)
   echo("begin")
-  let xInitial, yInitial = getPos()
-  echo("getPos", xInitial, yInitial)
+  let xInitial, yInitial = getCursorPos()
+  #echo("getPos", xInitial, yInitial)
   
   var tb = newTerminalBuffer(20, 20)
 
